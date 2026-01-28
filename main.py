@@ -11,19 +11,23 @@ import os
 from difflib import SequenceMatcher
 
 def main():
+# генерирую расширенный алфавит бля обращения к ячейкам excel таблицы
     alphabet = generate_alphabet()
+# помещаю в переменную объект эксель таблицы
     sheet = load_office_files()
+#прописываю путь к папке с документами содержащими темы курсовых и их отметки
     docx_folder = "./path"
-    print(docx_folder)
     files = os.listdir(docx_folder)
-    print((files))
-    d = find_cell_indexes(sheet, -1)
+#c помощью функции find_cell_indexes нахожу индекс ячейки(формат одномерный массив из 2 элементов)и добавляю
+#в массив marks_indexes
     marks_indexes = []
     marks_indexes.append(find_cell_indexes(sheet, "Фамилия, инициалы (инициал собственного имени) обучающегося"))
     marks_indexes.append(find_cell_indexes(sheet, "Учебная  практика:"))
     marks_indexes.append(find_cell_indexes(sheet, "Преддипломная"))
     marks_indexes.append(find_cell_indexes(sheet, "Количество часов"))
+
     print(marks_indexes)
+    
     hours_row = marks_indexes[3][0]
     names_row = marks_indexes[0][0]
     temp_index = find_cell_indexes(sheet, 'присвоенная квалификация (разряд)')
@@ -53,14 +57,34 @@ def main():
             ['Наименование учебных предметов, модулей, по которым выполнялись курсовые работы (курсовые проекты)',
              'Темы курсовых проектов (курсовых работ)', 'Количество учебных часов', 'Отметки'],
             context3)
-
+      
         # Работа с основным документом
         doc = Document('G.docx')
+
+        diploma_name=''
+        diploma=Document('themesDiploma.docx')
+        temp_table=diploma.tables[0]
+        print(temp_table)
+        #ищем индекс столбца с именами
+        for a, cell in enumerate(temp_table.rows[0].cells):
+            if (similar(str(cell.text), "Ф.И.О. учащегося") > 0.8):
+                index_of_col_with_names = a
+                break     
+        #перебираем имена по индексу
+        for b in range(len(temp_table.rows) - 1):
+            if (similar(str(temp_table.rows[b].cells[index_of_col_with_names].text.replace('\n', ' ')), name) > 0.8):
+                diploma_name = temp_table.rows[b].cells[index_of_col_with_names+1].text
+                break  
+        #берём таблицу из документа и достаём из неё название темы диплома в соответствии с именем
+
+
+
         doc = insert_table_in_template(doc, table1, '{{table1}}')
         doc = insert_table_in_template(doc, table2, '{{table2}}')
         doc = insert_table_in_template(doc, table3, '{{additional_table}}')
         doc = replace_placeholder_text(doc, '{{name}}', name)
         doc = replace_placeholder_text(doc, '{{qualification}}', qualification, False)
+        doc = replace_placeholder_text(doc,'diploma_name',diploma_name,False)
         doc.save(f'./generated_files/{name} выписка.docx')
 
 def generate_alphabet():
@@ -97,7 +121,7 @@ def create_table(document, headers, rows):
     # Создание таблицы
     table = document.add_table(rows=1, cols=len(headers))
     table.style = 'Table Grid'
-    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    table.alignment = WD_TABLE_ALIGNMENT.LEFT
     # Настройка ширины таблицы и колонок
     table.width = Inches(6)
     table.columns[0].width = Inches(3.5)
@@ -107,7 +131,7 @@ def create_table(document, headers, rows):
     hdr_cells = table.rows[0].cells
     for i, header in enumerate(headers):
         hdr_cells[i].text = header
-        set_cell_format(hdr_cells[i], bold=True)
+        set_cell_format(hdr_cells[i], bold=False)
     # Данные
     for row in rows:
         new_cells = table.add_row().cells
@@ -232,7 +256,9 @@ def create_add_table_context(files, name):
                 break
         to1, to3, to2 = our_table.rows[index_of_4].cells[index_of_col1 + 1].text.replace('\n', ' '), \
         our_table.rows[index_of_4].cells[index_of_col1 + 2].text.replace('\n', ' '), 20
-        temp = [file.rsplit('.docx', 1)[0], to1, to2, to3]
+        if is_number(to3):
+            to3 = str(to3) + '(' + num2words(int(to3), lang='ru') + ')'
+        temp = [file.rsplit('.docx', 1)[0], to1, to2, to3]   #      context[i][2] = str(context[i][2]) + '(' + num2words(int(context[i][2]), lang='ru') + ')'
         data.append(temp)
     return data
 
