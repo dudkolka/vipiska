@@ -39,9 +39,10 @@ def main():
         context1 = find_and_remove(
             return_of_line(sheet, alphabet, i, range(marks_indexes[0][1], (marks_indexes[1][1] - 1)), hours_row,
                            names_row))
-        context2 = find_and_remove(
+        context2 = create_add_table_context(files, name)
+        context3 = find_and_remove(
             return_of_line(sheet, alphabet, i, range(marks_indexes[1][1], (marks_indexes[2][1])), hours_row, names_row))
-        context3 = create_add_table_context(files, name)
+
         table1 = create_table(
             doc_temp,
             ['Наименование учебных предметов, модулей, факультативных занятий', 'Количество учебных часов', 'Отметки'],
@@ -49,43 +50,41 @@ def main():
         )
         table2 = create_table(
             doc_temp,
-            ['Наименование практик', 'Количество учебных часов', 'Отметки'],
-            context2
-        )
-        table3 = create_table(
-            doc_temp,
             ['Наименование учебных предметов, модулей, по которым выполнялись курсовые работы (курсовые проекты)',
              'Темы курсовых проектов (курсовых работ)', 'Количество учебных часов', 'Отметки'],
-            context3)
-      
+            context2)
+        table3 = create_table(
+            doc_temp,
+            ['Наименование практик', 'Количество учебных часов', 'Отметки'],
+            context3
+        )
+
         # Работа с основным документом
         doc = Document('G.docx')
-
-        diploma_name=''
-        diploma=Document('themesDiploma.docx')
-        temp_table=diploma.tables[0]
-        print(temp_table)
-        #ищем индекс столбца с именами
-        for a, cell in enumerate(temp_table.rows[0].cells):
-            if (similar(str(cell.text), "Ф.И.О. учащегося") > 0.8):
-                index_of_col_with_names = a
-                break     
-        #перебираем имена по индексу
-        for b in range(len(temp_table.rows) - 1):
-            if (similar(str(temp_table.rows[b].cells[index_of_col_with_names].text.replace('\n', ' ')), name) > 0.8):
-                diploma_name = temp_table.rows[b].cells[index_of_col_with_names+1].text
-                break  
-        #берём таблицу из документа и достаём из неё название темы диплома в соответствии с именем
-
-
+        diploma_name=search_diploma_name_in_docx_file(Document('themesDiploma.docx'), name)
 
         doc = insert_table_in_template(doc, table1, '{{table1}}')
-        doc = insert_table_in_template(doc, table2, '{{table2}}')
-        doc = insert_table_in_template(doc, table3, '{{additional_table}}')
+        doc = insert_table_in_template(doc, table2, '{{additional_table}}')
+        doc = insert_table_in_template(doc, table3, '{{table2}}')
         doc = replace_placeholder_text(doc, '{{name}}', name)
         doc = replace_placeholder_text(doc, '{{qualification}}', qualification, False)
         doc = replace_placeholder_text(doc,'diploma_name',diploma_name,False)
         doc.save(f'./generated_files/{name} выписка.docx')
+
+def search_diploma_name_in_docx_file(diploma, name):
+    temp_table=diploma.tables[0]
+        #ищем индекс столбца с именами
+    for a, cell in enumerate(temp_table.rows[0].cells):
+        if (similar(str(cell.text), "Ф.И.О. учащегося") > 0.8):
+            index_of_col_with_names = a
+            break     
+    #перебираем имена по индексу
+    for b in range(len(temp_table.rows) - 1):
+        if (similar(str(temp_table.rows[b].cells[index_of_col_with_names].text.replace('\n', ' ')), name) > 0.8):
+            return(temp_table.rows[b].cells[index_of_col_with_names+1].text)
+    
+    #берём таблицу из документа и достаём из неё название темы диплома в соответствии с именем
+
 
 def generate_alphabet():
     alphabet = [chr(i) for i in range(65, 91)]
@@ -123,10 +122,17 @@ def create_table(document, headers, rows):
     table.style = 'Table Grid'
     table.alignment = WD_TABLE_ALIGNMENT.LEFT
     # Настройка ширины таблицы и колонок
-    table.width = Inches(6)
-    table.columns[0].width = Inches(3.5)
-    table.columns[1].width = Inches(1.25)
-    table.columns[2].width = Inches(1.25)
+
+
+    if(len(table.columns)==3):
+        table.columns[0].width = Inches(4.35)
+        table.columns[1].width = Inches(1.25)
+        table.columns[2].width = Inches(1.25)
+    elif(len(table.columns)==4):
+        table.columns[0].width = Inches(3.10)
+        table.columns[1].width = Inches(1.25)
+        table.columns[2].width = Inches(1.25)
+        table.columns[3].width = Inches(1.25)
     # Заголовки
     hdr_cells = table.rows[0].cells
     for i, header in enumerate(headers):
@@ -137,7 +143,10 @@ def create_table(document, headers, rows):
         new_cells = table.add_row().cells
         for i, value in enumerate(row):
             new_cells[i].text = str(value)
-            set_cell_format(new_cells[i], center=(i != 0))
+            if (len(headers)<=3):            
+                set_cell_format(new_cells[i], center= (i == 1))
+            else:
+                set_cell_format(new_cells[i], center=(i == 1 or i == 2))
     set_table_borders(table)
     return table
 
@@ -250,7 +259,7 @@ def create_add_table_context(files, name):
             if (similar(str(cell.text), "-1") > 0.8):
                 index_of_col1 = a
                 break
-        for b in range(len(our_table.rows) - 1):
+        for b in range(len(our_table.rows)):
             if (similar(str(our_table.rows[b].cells[index_of_col1].text.replace('\n', ' ')), name) > 0.8):
                 index_of_4 = b
                 break
